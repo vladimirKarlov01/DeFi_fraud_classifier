@@ -54,13 +54,19 @@ def analyze_trns(q_in: Queue):
     :return:
     """
     w3 = Web3(Web3.WebsocketProvider(wss))
-    analyzed_trns = {}
+    processed_trns = {}
     
     while True:
         try:
             trns = q_in.get()
             
-            if trns['hash'] in analyzed_trns:  # check duplicated transactions
+            if trns['hash'] in processed_trns:  # check duplicated transactions
+                print('Duplicated transaction')
+                continue
+
+            is_deploy_trns = trns['to'] is None and trns['input'].hex()[:10] == '0x60806040'
+            if not is_deploy_trns:
+                print('Not a deploy transaction')
                 continue
              
             trns = w3.eth.get_transaction(trns['hash'])
@@ -73,7 +79,7 @@ def analyze_trns(q_in: Queue):
                   f"Hash - {trns_hash}\n"
                   f"Is_malicious? {y_class}\n")
             
-            analyzed_trns.add(trns_hash)
+            processed_trns.add(trns_hash)
 
         except Exception as exc:
             print(f'Exception raised while transaction analysis: {str(exc)}')
@@ -98,3 +104,6 @@ if __name__ == '__main__':
     # start
     new_deploys_tracker.start()
     deploy_analyzer.start()
+
+    new_deploys_tracker.join()
+    deploy_analyzer.join()
