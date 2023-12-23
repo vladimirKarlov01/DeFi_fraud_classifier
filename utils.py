@@ -1,11 +1,13 @@
 import pickle
 from evmdasm import EvmBytecode
+from catboost import CatBoostClassifier
 
-model = None # yours model
-tr = None # yours threshold
-trfrm = None # yours vectorizer
+model = CatBoostClassifier().load_model('Model/catboost_clf_checkpoint.cbm', format='cbm')
+tr = 0.8
+trfrm = pickle.load(open('Model/vectorizer.pkl', 'rb'))
 
-def decompile(_bytecode: str):
+
+def decompile(_bytecode: str) -> str:
     """
     Декомпилирует байткод в опкод
     :param _bytecode: байткод контракта из нового блока
@@ -18,11 +20,16 @@ def decompile(_bytecode: str):
     opcode_normalized = opcode.replace(' \n', '\n').replace(' ', ' 0x')
     return opcode_normalized.lower()
 
-def inference(_opcode: str):
+
+def inference(_opcode: str, debug: bool = False) -> int:
     """
     Инференс вашей модели
     :param _opcode:
     :return: класс смарт-контракта
     """
-    y_proba = None # скор вашей модели
+    opcode_transformed = trfrm.transform([_opcode])
+    probs = model.predict_proba(opcode_transformed)
+    if debug:
+        print(f"Probabilities: {probs}")
+    y_proba = probs[:, 1]  # pos class prob
     return int(y_proba > tr)

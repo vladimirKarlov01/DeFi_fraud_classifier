@@ -19,6 +19,7 @@ def get_new_trns(q_out: Queue):
     w3 = Web3(Web3.WebsocketProvider(wss))
     print(f'Node Connection - {w3.is_connected()}')
     print(f'Connection attempt - {i}')
+    
     while True:
         try:
             start_time = time.time()
@@ -28,9 +29,14 @@ def get_new_trns(q_out: Queue):
                     q_out.put(trns)
             end_time = time.time()
             print(f"{end_time - start_time} per 1 batch")
-        except Exception as e:
-            #TODO Ваша обработка нарушения соединения с нодой
-            pass
+        except Exception as exc:
+            print(f'Exception raised while getting new block: {str(exc)}')
+            if not w3.is_connected():
+                i += 1
+                print(f"Reconnection attempt – {i}")
+                w3 = Web3(Web3.WebsocketProvider(wss))
+                print(f'Connection status - {w3.is_connected()}')
+
 
 def analyze_trns(q_in: Queue):
     """
@@ -47,18 +53,38 @@ def analyze_trns(q_in: Queue):
     :param q_in:
     :return:
     """
-    #TODO Ваша имплементация
-    trns_address = None
-    trns_hash = None
-    y_class = None
-    print(f"Address - {trns_address}"
-          f"Hash - {trns_hash}"
-          f"Is_malicious? {y_class}")
+    w3 = Web3(Web3.WebsocketProvider(wss))
+    analyzed_trns = {}
+    
+    while True:
+        try:
+            trns = q_in.get()
+            
+            if trns['hash'] in analyzed_trns:  # check duplicated transactions
+                continue
+             
+            trns = w3.eth.get_transaction(trns['hash'])
+            trns_address = trns['from']
+            trns_hash = trns['hash']
+            _opcode = decompile(trns['input'])
+            y_class = inference(_opcode)  # call model for prediction
+
+            print(f"Address - {trns_address}\n"
+                  f"Hash - {trns_hash}\n"
+                  f"Is_malicious? {y_class}\n")
+            
+            analyzed_trns.add(trns_hash)
+
+        except Exception as exc:
+            print(f'Exception raised while transaction analysis: {str(exc)}')
+
 
 if __name__ == '__main__':
     print('Hello there!')
+    
     # Queue for new pending trns
     new_deploys_trns_queue = Queue()
+    
     new_deploys_tracker = Process(name='Mempool Scanner',
                               target=get_new_trns,
                               args=(new_deploys_trns_queue, ),
@@ -72,5 +98,3 @@ if __name__ == '__main__':
     # start
     new_deploys_tracker.start()
     deploy_analyzer.start()
-
-
