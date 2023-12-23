@@ -23,7 +23,7 @@ def get_new_trns(q_out: Queue):
     while True:
         try:
             start_time = time.time()
-            trns_block = w3.eth.get_block('new_block', full_transactions=True).transactions # считываем батч новых транз
+            trns_block = w3.eth.get_block('latest', full_transactions=True).transactions # считываем батч новых транз
             for trns in trns_block:
                 if trns['to'] is None: # смотрим что транзакция это деплой
                     q_out.put(trns)
